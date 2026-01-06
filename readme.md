@@ -1,5 +1,3 @@
-<img src="./scripts/opop.svg" alt="OpOp Logo" width="100" align="right" />
-
-### Op-Op but for Quantum Circuits
+### qudit-cut
 
 Circuit cutting but for qudit quantum circuits.
