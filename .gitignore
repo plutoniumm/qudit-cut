@@ -1,0 +1,7 @@
+local/
+.DS_Store
+__pycache__/
+*.log
+.env
+.vscode/
+.cache/
