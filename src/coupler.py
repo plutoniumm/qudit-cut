@@ -48,15 +48,6 @@ class G:
         return f"G({a},{b})"
 
     @staticmethod
-    def frm(string: str):
-        assert string.startswith("G(") and string.endswith(")")
-
-        a_b = string[2:-1]
-        a, b = a_b.split(",")
-
-        return int(a), int(b)
-
-    @staticmethod
     def basis(d):
         B = {"I": pt.eye(d, dtype=pt.complex64)}
         for a in range(1, d + 1):  # 1-based
@@ -71,9 +62,7 @@ class G:
 
     @staticmethod
     def Project(d):
-        diags = [GellMann(j, j, d) for j in range(1, d)]
-        diags = [torchify(M) for M in diags]
-
+        diags = [torchify(GellMann(j, j, d)) for j in range(1, d)]
         I = pt.eye(d, dtype=pt.complex64)
         P = {}
         for r in range(d):
@@ -92,7 +81,7 @@ def shift(d, r):
     return X
 
 
-def decompose(A, basis, threshold):
+def decompose_basis(A, basis, threshold):
     out = []
     for label, B in basis.items():
         num = pt.trace(A @ B.conj().T)
@@ -100,22 +89,45 @@ def decompose(A, basis, threshold):
         c = num / den
         if abs(c) > threshold:
             out.append((label, c))
-
     return out
 
+def decomp_svd(U, d1, d2, threshold):
+    # View as tensor (Row_A, Row_B, Col_A, Col_B)
+    U_tensor = U.view(d1, d2, d1, d2)
+    # Permute to (Row_A, Col_A, Row_B, Col_B)
+    U_permuted = U_tensor.permute(0, 2, 1, 3)
+    # Flatten to (d1^2, d2^2)
+    M = U_permuted.reshape(d1 * d1, d2 * d2)
+
+    # SVD
+    U_mat, S, Vh = pt.linalg.svd(M, full_matrices=False)
+
+    terms = []
+    for i in range(len(S)):
+        coeff = S[i]
+        if coeff > threshold:
+            op_A = U_mat[:, i].reshape(d1, d1)
+            op_B = Vh[i, :].reshape(d2, d2)
+            terms.append((op_A, op_B, coeff))
+    return terms
 
 class Coupler:
-    def __init__(self, dim1, dim2, threshold):
+    def __init__(self, dim1, dim2, method="optimal", threshold=1e-6):
+        assert method in ["basis", "optimal"], "Method must be 'basis' or 'optimal'"
+        assert dim1 >= 2 and dim2 >= 2, "Dimensions must be at least 2"
+        assert threshold >= 0, "Threshold must be non-negative"
+
         self.d1 = dim1
         self.d2 = dim2
+        self.threshold = threshold
+        self.method = method
 
         self.B1 = G.basis(dim1)
         self.B2 = G.basis(dim2)
-
         self.P1 = G.Project(dim1)
         self.P2 = G.Project(dim2)
 
-        self.terms = self._build_terms(threshold)
+        self.terms = self._build_terms()
 
     def X(self, r, which=2):
         if which == 1:
@@ -135,17 +147,34 @@ class Coupler:
 
         return CX
 
-    def _build_terms(self, threshold):
-        terms = []
-        for r in range(self.d1):
-            A = self.P1[r]  # |r><r|
-            B = shift(self.d2, r)  # X^r on target
+    def _build_terms(self):
+        if self.method == "basis":
+            terms = []
+            for r in range(self.d1):
+                A = self.P1[r]
+                B = shift(self.d2, r)
 
-            left = decompose(A, self.B1, threshold)
-            right = decompose(B, self.B2, threshold)
+                left = decompose_basis(A, self.B1, self.threshold)
+                right = decompose_basis(B, self.B2, self.threshold)
 
-            for a_label, a_c in left:
-                for b_label, b_c in right:
-                    terms.append((a_label, b_label, a_c * b_c))
+                for a_label, a_c in left:
+                    for b_label, b_c in right:
+                        terms.append((a_label, b_label, a_c * b_c))
+            return terms
 
-        return terms
+        elif self.method == "optimal":
+            return decomp_svd(self.CX, self.d1, self.d2, self.threshold)
+
+        else:
+            raise ValueError("Method must be 'basis' or 'optimal'")
+
+    def reconstruct(self):
+        recon = pt.zeros_like(self.CX)
+        for term in self.terms:
+            if self.method == "basis":
+                labA, labB, c = term
+                recon += c * pt.kron(self.B1[labA], self.B2[labB])
+            else:
+                opA, opB, c = term
+                recon += c * pt.kron(opA, opB)
+        return recon

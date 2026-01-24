@@ -7,18 +7,18 @@ from time import time
 import numpy as np
 import gc
 
-D1, D2 = 8, 8
-coupler = Coupler(D1, D2)
+D1, D2 = 3, 3
+
+# coupler = Coupler(D1, D2, method="optimal")
+coupler = Coupler(D1, D2, method="basis")
 C = Cache("./.cache/large.npz")
-SZ, HF = 8, 4
+SZ, HF = 4, 2
 
 def count(start: int, count: int):
     return [start + 2 * i for i in range(count)]
 
 pset1 = count(3, HF)
 pset2 = count(3 + 2 * HF, SZ - HF)
-
-odd = lambda a, b: list(range(a, b, 2))
 
 def original():
     qc = Circuit(SZ, dim=[D1] * HF + [D2] * HF)
@@ -55,8 +55,12 @@ def cut():
 
         for q in range(HF):
             qc1.gate(G1.H, [q])
-        if sub1 != "I":
-            qc1.gate(coupler.B1[sub1], [HF - 1])
+
+        if isinstance(sub1, str):
+            if sub1 != "I":
+                qc1.gate(coupler.B1[sub1], [HF - 1])
+        else:
+            qc1.gate(sub1, [HF - 1])
 
         for i, ang in enumerate(pset1):
             qc1.gate(G1.RY, i, angle=np.pi / ang)
@@ -72,8 +76,12 @@ def cut():
 
         for q in range(HF):
             qc2.gate(G2.H, [q])
-        if sub2 != "I":
-            qc2.gate(coupler.B2[sub2], [0])
+
+        if isinstance(sub2, str):
+            if sub2 != "I":
+                qc2.gate(coupler.B2[sub2], [0])
+        else:
+            qc2.gate(sub2, [0])
 
         for j, ang in enumerate(pset2):
             qc2.gate(G2.RY, j, angle=np.pi / ang)

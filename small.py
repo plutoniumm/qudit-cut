@@ -5,13 +5,14 @@ from time import time
 import numpy as np
 import argparse
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--d", nargs=2, type=int, required=True, help="Dimensions D1 D2")
-parser.add_argument("--t", type=float, required=True, help="Coupler threshold")
-args = parser.parse_args()
+# Ex: python small.py --d 3 4 --t 1e-6
+P = argparse.ArgumentParser()
+P.add_argument("--d", nargs=2, type=int, required=True, help="Dimensions D1 D2")
+P.add_argument("--t", type=float, required=True, help="Coupler threshold")
+args = P.parse_args()
 
 D1, D2 = args.d
-coupler = Coupler(D1, D2, threshold=args.t)
+coupler = Coupler(D1, D2, method="optimal", threshold=args.t)
 
 def original():
     qc = Circuit(4, dim=[D1, D1, D2, D2])
@@ -51,9 +52,12 @@ def cut():
 
         for j in range(2):
             qc1.gate(G1.H, [j])
-        if op_sub1 != "I":
-            gate = coupler.B1[op_sub1]
-            qc1.gate(gate, [1])
+
+        if isinstance(op_sub1, str):
+            if op_sub1 != "I":
+                qc1.gate(coupler.B1[op_sub1], [1])
+        else:
+            qc1.gate(op_sub1, [1])
 
         qc1.gate(G1.RY, 0, angle=np.pi / 3)
         qc1.gate(G1.RZ, 0, angle=np.pi / 4)
@@ -67,9 +71,12 @@ def cut():
 
         for j in range(2):
             qc2.gate(G2.H, [j])
-        if op_sub2 != "I":
-            gate = coupler.B2[op_sub2]
-            qc2.gate(gate, [0])
+
+        if isinstance(op_sub2, str):
+            if op_sub2 != "I":
+                qc2.gate(coupler.B2[op_sub2], [0])
+        else:
+            qc2.gate(op_sub2, [0])
 
         qc2.gate(G2.RY, 0, angle=np.pi / 7)
         qc2.gate(G2.RZ, 0, angle=np.pi / 8)
@@ -86,13 +93,8 @@ def cut():
     perm = [2, 3, 0, 1]
     return stitch(amp, bases, perm)
 
-t0 = time()
 orig_probs = getProbs(original(), 4)
-t0 = time() - t0
-
-t1 = time()
 cut_probs = cut()
-t1 = time() - t1
 
 total_error = 0
 keys = sorted(orig_probs.keys())
@@ -105,6 +107,5 @@ for k in keys:
     total_error += diff
 
 tvd = total_error / 2
-slow = t1 / t0
 terms = len(coupler.terms)
-print(f"TVD={tvd:.5f} | Slow: {slow:.3f}x | Terms: {terms}")
+print(f"{D1},{D2},{args.t},{terms},{tvd:.5f}")
