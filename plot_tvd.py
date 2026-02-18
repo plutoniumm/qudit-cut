@@ -1,34 +1,46 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 
-cols = ["d1", "d2", "T", "terms", "TVD", "Slow"]
-
+# PRE PROCESSING
+cols = ["d1", "d2", "T", "terms", "tvd", "speedup"]
 opt = pd.read_csv("./scripts/optimal.csv", engine="python")
 opt.columns = cols
 opt = opt.astype(float)
 opt["trunc"] = 1e-6
 
-tri = pd.read_csv("./scripts/truncimal.csv", engine="python")
-tri.columns = cols
-tri = tri.astype(float)
-tri["trunc"] = 2e-4
+opt["d1"] = opt["d1"].astype(int)
+opt["d2"] = opt["d2"].astype(int)
 
-df = pd.concat([opt, tri], ignore_index=True)
-df["dim"] = (df["d1"] * df["d2"])
+# MAIN
+df = opt.copy()
 
 fig, ax = plt.subplots(figsize=(8, 5))
-for trunc, group in df.groupby("trunc"):
-    group = group.sort_values("dim")
-    ax.plot(group["dim"], group["TVD"], marker="o", linewidth=1.5, alpha=0.5, label=f"{trunc:.0e}")
 
-ax.set_xlabel("dim=$d_1d_2$", fontsize=14)
-ax.set_ylabel("TVD", fontsize=14)
-ax.set_xscale("log")
+tvd = df["tvd"].clip(lower=0)
+sizes = 100 * (tvd / tvd.max()) + 10
+
+sc = ax.scatter(
+    df["d1"],
+    df["d2"],
+    s=sizes,
+    c=tvd,
+    cmap="viridis",
+    alpha=0.8,
+    edgecolors="k",
+    linewidths=0.6,
+)
+
+ax.set_xlabel("$d_1$", fontsize=14)
+ax.set_ylabel("$d_2$", fontsize=14)
+
+ax.set_xticks(sorted(df["d1"].unique()))
+ax.set_yticks(sorted(df["d2"].unique()))
+
 ax.tick_params(axis="both", which="both", labelsize=14)
 ax.grid(True, which="both", linestyle="--", alpha=0.4)
 
-ax.legend(title="Truncation", fontsize=14, title_fontsize=14, loc="best")
+cbar = plt.colorbar(sc, ax=ax)
+cbar.set_label("TVD", fontsize=12)
 
 plt.tight_layout()
-# plt.savefig("./local/scaling.png", dpi=300)
-plt.show()
+plt.savefig("./local/tvd.png", dpi=300)

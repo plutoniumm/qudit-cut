@@ -129,12 +129,6 @@ class Coupler:
 
         self.terms = self._build_terms()
 
-    def X(self, r, which=2):
-        if which == 1:
-            return shift(self.d1, r)
-        else:
-            return shift(self.d2, r)
-
     @property
     def CX(self):
         w = self.d1 * self.d2

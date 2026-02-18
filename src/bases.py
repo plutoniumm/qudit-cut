@@ -1,5 +1,5 @@
-from typing import Optional, List
-import numpy as np
+from typing import Union, List
+import torch as pt
 
 
 def to_mixed(num: int, bases: List[int]) -> List[int]:
@@ -34,35 +34,28 @@ def fr_mixed(digits: List[int], bases: List[int]) -> int:
 
     return num
 
-
 def flip(
-    state: np.ndarray, base: int = 2, dims: Optional[List[int]] = None
-) -> np.ndarray:
-    if not isinstance(state, np.ndarray):
-        state = state.cpu().detach().numpy()
+    state: pt.Tensor,
+    base: Union[int, List[int], pt.Tensor],
+) -> pt.Tensor:
+    if not isinstance(state, pt.Tensor):
+        state = pt.tensor(state)
 
-    total_len = len(state)
+    width = state.shape[0]
 
-    if dims is None and isinstance(base, (list, tuple, np.ndarray)):
-        dims = list(base)
-
-    if dims is None:
-        if not isinstance(base, (int, np.integer)):
-            raise TypeError("base must be an int when dims is None")
-
-        n = int(np.log(total_len) / np.log(int(base)))
-        if int(base) ** n != total_len:
-            raise ValueError
-        dims_list: List[int] = [int(base)] * n
+    if isinstance(base, (list, tuple, pt.Tensor)):
+        dims_list = [int(b) for b in base]
     else:
-        dims_list = [int(b) for b in dims]
-        if int(np.prod(dims_list)) != total_len:
-            raise ValueError
+        n = int(pt.log(pt.tensor(width)) / pt.log(pt.tensor(base)))
+        dims_list = [base] * n
 
-    out = np.empty_like(state)
+    if int(pt.prod(pt.tensor(dims_list))) != width:
+        raise ValueError
+
+    out = pt.empty_like(state)
     dims_rev = dims_list[::-1]
 
-    for i in range(total_len):
+    for i in range(width):
         digits_out = to_mixed(i, dims_rev)
         j = fr_mixed(digits_out[::-1], dims_list)
         out[i] = state[j]

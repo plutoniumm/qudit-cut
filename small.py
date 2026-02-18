@@ -93,8 +93,13 @@ def cut():
     perm = [2, 3, 0, 1]
     return stitch(amp, bases, perm)
 
+t0 = time()
 orig_probs = getProbs(original(), 4)
+t0 = time() - t0
+
+t1 = time()
 cut_probs = cut()
+t1 = time() - t1
 
 total_error = 0
 keys = sorted(orig_probs.keys())
@@ -108,4 +113,5 @@ for k in keys:
 
 tvd = total_error / 2
 terms = len(coupler.terms)
-print(f"{D1},{D2},{args.t},{terms},{tvd:.5f}")
+speed_up = t0 / t1
+print(f"{D1},{D2},{args.t},{terms},{tvd:.5f},{speed_up:.2f}")
