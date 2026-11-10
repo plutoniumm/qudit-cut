@@ -1,7 +1,12 @@
-local/
-.DS_Store
 __pycache__/
-*.log
+.DS_Store
+.cache/
 .env
 .vscode/
-.cache/
+*.aux
+*.log
+*.blg
+*.bbl
+*.out
+local/
+conf/
